@@ -10,7 +10,7 @@ from dace.properties import make_properties
 from typing import Tuple
 
 
-@registry.autoregister_params(strict=True)
+@registry.autoregister_params(singlestate=True)
 @make_properties
 class TrivialMapRangeElimination(pattern_matching.Transformation):
     """ Implements the Trivial Map Range Elimination pattern.
