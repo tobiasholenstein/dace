@@ -11,6 +11,7 @@ from .map_fusion import MapFusion
 from .map_fission import MapFission
 from .trivial_map_elimination import TrivialMapElimination
 from .trivial_map_range_elimination import TrivialMapRangeElimination
+from .otf_map_fusion import OnTheFlyMapFusion
 
 
 # Data movement
