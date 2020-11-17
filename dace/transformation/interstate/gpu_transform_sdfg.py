@@ -38,12 +38,12 @@ class GPUTransformSDFG(transformation.Transformation):
 
     sequential_innermaps = Property(desc="Make all internal maps Sequential",
                                     dtype=bool,
-                                    default=True)
+                                    default=False)
 
     strict_transform = Property(
         desc='Reapply strict transformations after modifying graph',
         dtype=bool,
-        default=True)
+        default=False)
 
     exclude_copyin = Property(
         desc="Exclude these arrays from being copied into the device "
@@ -352,8 +352,5 @@ class GPUTransformSDFG(transformation.Transformation):
 
         #######################################################
         # Step 8: Strict transformations
-        if not self.strict_transform:
-            return
-
-        # Apply strict state fusions greedily.
-        sdfg.apply_strict_transformations()
+        if self.strict_transform:
+            sdfg.apply_strict_transformations()
