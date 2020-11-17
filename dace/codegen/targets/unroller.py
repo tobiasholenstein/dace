@@ -44,9 +44,9 @@ class UnrollCodeGen(TargetCodeGenerator):
             index_list.append(l)
 
         for indices in product(*index_list):
+            callsite_stream.write('{{{')
             for param, index in zip(entry_node.map.params, indices):
                 callsite_stream.write(f'auto {param} = {sym2cpp(index)};')
-            callsite_stream.write('{{{')
             self._dispatcher.dispatch_subgraph(sdfg, scope, state_id,
                                             function_stream, callsite_stream,
                                             skip_entry_node=True)
