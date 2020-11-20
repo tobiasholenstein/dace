@@ -21,6 +21,30 @@ import dace.transformation.helpers as helpers
 from dace.transformation import transformation as xf
 
 
+def _check_range(subset, a, itersym, b):
+    found = False
+    for rb, re, _ in subset.ndrange():
+        m = rb.match(a * itersym + b)
+        if m is None:
+            continue
+        if (m[a] >= 1) != True:
+            continue
+        if re != rb:
+            # If False or indeterminate, the range may
+            # overlap across iterations
+            if ((re - rb) > m[a]) != False:
+                continue
+
+            m = re.match(a * itersym + b)
+            if m is None:
+                continue
+            if (m[a] >= 1) != True:
+                continue
+        found = True
+        break
+    return found
+
+
 @registry.autoregister
 class LoopToMap(DetectLoop):
     """Convert a control flow loop into a dataflow map. Currently only supports
@@ -63,6 +87,17 @@ class LoopToMap(DetectLoop):
         _, write_set = begin.read_and_write_sets()
         code_nodes = [n for n in begin.nodes() if isinstance(n, nodes.CodeNode)]
 
+        # Get access nodes from other states to isolate local loop variables
+        other_access_nodes = set()
+        for state in sdfg.nodes():
+            if state is begin:
+                continue
+            other_access_nodes |= set(n.data for n in state.data_nodes()
+                                      if sdfg.arrays[n.data].transient)
+        # Add non-transient nodes from loop state
+        other_access_nodes |= set(n.data for n in begin.data_nodes()
+                                  if not sdfg.arrays[n.data].transient)
+
         write_memlets = defaultdict(list)
 
         itersym = symbolic.pystr_to_symbolic(itervar)
@@ -73,9 +108,11 @@ class LoopToMap(DetectLoop):
             # Take all writes that are not conflicted into consideration
             for e in begin.out_edges(cn):
                 data = e.data.data
+                if data not in other_access_nodes:
+                    continue
                 subset = e.data.subset
                 if data in write_set:
-                    if e.data.dynamic:
+                    if e.data.dynamic and e.data.wcr is None:
                         # If pointers are involved, give up
                         return False
                     # To be sure that the value is only written at unique
@@ -83,17 +120,7 @@ class LoopToMap(DetectLoop):
                     # of the form "a*i+b" where a >= 1, and i is the iteration
                     # variable. The iteration variable must be used.
                     if e.data.wcr is None:
-                        found = False
-                        for rb, re, rs in e.data.subset.ndrange():
-                            if rb != re:
-                                continue
-                            m = rb.match(a * itersym + b)
-                            if m is None:
-                                continue
-                            if (m[a] >= 1) != True:
-                                continue
-                            found = True
-                        if not found:
+                        if not _check_range(e.data.subset, a, itersym, b):
                             return False
                     # End of check
 
@@ -108,8 +135,10 @@ class LoopToMap(DetectLoop):
                 # If the same container is both read and written, only match if
                 # it read and written at locations that will not create data races
                 if data in write_memlets:
-                    if e.data.dynamic or subset.num_elements() != 1:
+                    if e.data.dynamic and subset.num_elements() != 1:
                         # If pointers are involved, give up
+                        return False
+                    if not _check_range(e.data.subset, a, itersym, b):
                         return False
 
                     pread = propagate_subset([e.data], sdfg.arrays[data],
