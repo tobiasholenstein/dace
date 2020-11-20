@@ -483,6 +483,14 @@ class NestedSDFG(CodeNode):
                   pystr_to_symbolic(v).free_symbols)
               for v in self.location.values()))
 
+    def add_symbol(self, name, stype):
+        """ Adds a symbol to the nested SDFG and the mapped symbols.
+            :param name: Symbol name.
+            :param stype: Symbol type.
+        """
+        self.sdfg.add_symbol(name, stype)
+        self.symbol_mapping[name] = dace.symbol(name)
+
     def infer_connector_types(self, sdfg, state):
         # Avoid import loop
         from dace.sdfg.infer_types import infer_connector_types
