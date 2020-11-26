@@ -211,16 +211,31 @@ class StateFusion(transformation.Transformation):
                 for node in first_state.nodes() if
                 isinstance(node, nodes.AccessNode) and node not in first_input
             }
-            second_input = {
-                node
-                for node in sdutil.find_source_nodes(second_state)
-                if isinstance(node, nodes.AccessNode)
-            }
+
+            # Compute source access nodes for second state
+            second_input = set(second_state.data_nodes())
+            nodes_to_remove = set()
+            for node in second_input:
+                if second_state.out_degree(node) == 0:
+                    nodes_to_remove.add(node)
+                if node in nodes_to_remove:
+                    continue
+                for other_node in second_input:
+                    if node is other_node or node.data != other_node.data:
+                        continue
+                    if nx.has_path(second_state._nx, other_node, node):
+                        nodes_to_remove.add(node)
+                        break
+            second_input -= nodes_to_remove
+            
+
             second_output = {
                 node
-                for node in second_state.nodes() if
-                isinstance(node, nodes.AccessNode) and node not in second_input
+                for node in second_state.nodes()
+                if isinstance(node, nodes.AccessNode)
+                and node not in sdutil.find_source_nodes(second_state)
             }
+            # second_tc = nx.transitive_closure(second_state.nx)
 
             # Find source/sink (data) nodes by connected component
             first_cc_input = [cc.intersection(first_input) for cc in first_cc]
@@ -239,7 +254,7 @@ class StateFusion(transformation.Transformation):
             second_input_names = {node.data for node in second_input}
 
             # If any second input appears more than once, fail
-            if len(second_input) > len(second_input_names):
+            if first_output_names and len(second_input) > len(second_input_names):
                 return False
 
             # If any first output that is an input to the second state
@@ -430,10 +445,21 @@ class StateFusion(transformation.Transformation):
             node for node in sdutil.find_sink_nodes(first_state)
             if isinstance(node, nodes.AccessNode)
         ]
-        second_input = [
-            node for node in sdutil.find_source_nodes(second_state)
-            if isinstance(node, nodes.AccessNode)
-        ]
+        # Compute source access nodes for second state
+        second_input = set(second_state.data_nodes())
+        nodes_to_remove = set()
+        for node in second_input:
+            if second_state.out_degree(node) == 0:
+                nodes_to_remove.add(node)
+            if node in nodes_to_remove:
+                continue
+            for other_node in second_input:
+                if node is other_node or node.data != other_node.data:
+                    continue
+                if nx.has_path(second_state._nx, other_node, node):
+                    nodes_to_remove.add(node)
+                    break
+        second_input -= nodes_to_remove
 
         # first input = first input - first output
         first_input = [
@@ -480,3 +506,7 @@ class StateFusion(transformation.Transformation):
         # Redirect edges and remove second state
         sdutil.change_edge_src(sdfg, second_state, first_state)
         sdfg.remove_node(second_state)
+
+        # Merge newly created access nodes
+        from dace.transformation.dataflow import MergeSourceSinkArrays
+        sdfg.apply_transformations_repeated(MergeSourceSinkArrays, validate=False, strict=True)
