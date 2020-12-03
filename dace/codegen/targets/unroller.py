@@ -36,6 +36,7 @@ class UnrollCodeGen(TargetCodeGenerator):
 
         index_list = []
         for begin, end, stride in entry_node.map.range:
+            callsite_stream.write('{')
             # begin, end, stride = (sym2cpp(r) for r in rng)
             l = []
             while begin <= end:
@@ -44,7 +45,6 @@ class UnrollCodeGen(TargetCodeGenerator):
             index_list.append(l)
 
         for indices in product(*index_list):
-            callsite_stream.write('{{{')
             for param, index in zip(entry_node.map.params, indices):
                 callsite_stream.write(f'auto {param} = {sym2cpp(index)};')
             self._dispatcher.dispatch_subgraph(sdfg, scope, state_id,
