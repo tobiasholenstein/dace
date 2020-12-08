@@ -950,6 +950,11 @@ def union(subset_a: Subset, subset_b: Subset) -> Subset:
     except TypeError:  # cannot determine truth value of Relational
         return None
 
+def union_of_list(subsets: List[Subset]) -> Subset:
+    u = subsets[0]
+    for i in range(1, len(subsets)):
+        u = union(u, subsets[i])
+    return u
 
 def intersects(subset_a: Subset, subset_b: Subset) -> Union[bool, None]:
     """
